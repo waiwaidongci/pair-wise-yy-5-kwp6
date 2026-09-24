@@ -9,11 +9,14 @@
     body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: #f3efe7; color: #282018; }
     header { padding: 18px 24px; background: #fffaf2; border-bottom: 1px solid #d9cdbc; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
     h1 { margin: 0; font-size: 26px; }
+    h2 { font-size: 16px; margin: 18px 0 8px; }
     button { border: 0; border-radius: 8px; padding: 10px 13px; background: #8d3e37; color: #fff; font-weight: 800; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
     button.secondary { background: #71675c; }
-    input, select { width: 100%; border: 1px solid #d9cdbc; border-radius: 6px; padding: 9px; font: inherit; background: #fff; }
+    input, select, textarea { width: 100%; border: 1px solid #d9cdbc; border-radius: 6px; padding: 9px; font: inherit; background: #fff; }
+    textarea { resize: vertical; min-height: 64px; }
     label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
-    .app { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; padding: 16px; }
+    .app { display: grid; grid-template-columns: 260px 1fr 300px 300px; gap: 16px; padding: 16px; align-items: start; }
     .panel { background: #fffaf2; border: 1px solid #d9cdbc; border-radius: 8px; padding: 14px; }
     .grid { display: grid; gap: 2px; margin: 0 auto; width: min(100%, 720px); border: 6px solid #72533c; background: #72533c; }
     .cell { aspect-ratio: 1; background: #f8ead2; cursor: pointer; border-radius: 2px; }
@@ -23,17 +26,42 @@
     .blocks { display: grid; gap: 8px; }
     .stats { display: grid; gap: 8px; }
     .stat { display: flex; justify-content: space-between; border-bottom: 1px solid #e1d5c5; padding: 6px 0; }
+    .dot { display: inline-block; width: 12px; height: 12px; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; }
     .preview { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; border: 1px solid #d9cdbc; padding: 6px; margin-top: 8px; }
     .mini { aspect-ratio: 1; border-radius: 2px; }
     .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .warning { color: #a03a2e; font-weight: 800; }
-    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } }
+    .status { font-size: 13px; margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; }
+    .status.dirty { background: #f6e3d3; color: #7c4a1d; }
+    .status.clean { background: #e4ece1; color: #355b38; }
+    .message { margin: 8px 0 0; font-size: 13px; font-weight: 700; min-height: 18px; }
+    .message.error { color: #a03a2e; }
+    .message.success { color: #355b38; }
+    .message.info { color: #5d5144; }
+    .versions { display: grid; gap: 10px; max-height: 75vh; overflow: auto; }
+    .version { border: 1px solid #d9cdbc; border-radius: 8px; padding: 10px; background: #fff; }
+    .version.current-base { border-color: #8d3e37; box-shadow: 0 0 0 2px rgba(141,62,55,.15); }
+    .version header { display: flex; align-items: center; gap: 8px; padding: 0; background: none; border: 0; flex-wrap: wrap; }
+    .vseq { font-size: 12px; color: #fff; background: #71675c; border-radius: 99px; padding: 2px 8px; }
+    .vname { font-size: 15px; }
+    .tag { font-size: 11px; color: #8d3e37; border: 1px solid #8d3e37; border-radius: 99px; padding: 1px 7px; }
+    .version time { margin-left: auto; font-size: 12px; color: #8a7c6e; }
+    .vmeta { font-size: 12px; color: #8a7c6e; margin: 6px 0; }
+    .frozen-preview { margin: 6px 0; }
+    .usage { display: flex; flex-wrap: wrap; gap: 6px; }
+    .usage-pill { font-size: 12px; background: #f3efe7; border-radius: 99px; padding: 2px 8px; display: inline-flex; gap: 4px; align-items: center; }
+    .vnotes { font-size: 13px; margin: 8px 0; white-space: pre-wrap; }
+    .vnotes.empty { color: #a99c8d; }
+    .hint { font-size: 13px; color: #8a7c6e; }
+    .fork-btn { width: 100%; margin-top: 8px; }
+    @media (max-width: 1200px) { .app { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 760px) { header { display: block; } .app { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <div><h1>手工织锦纹样排版台</h1><div>绘制经纬网格纹样，统计色线用量并保存方案。</div></div>
-    <div class="toolbar"><button id="saveBtn">保存方案</button><button id="exportBtn" class="secondary">导出JSON</button></div>
+    <div><h1>手工织锦纹样排版台</h1><div>绘制经纬网格纹样，统计色线用量；提交即冻结，旧配色可随时续作。</div></div>
+    <div class="toolbar"><button id="exportBtn" class="secondary">导出全部版本JSON</button></div>
   </header>
   <main class="app">
     <aside class="panel">
@@ -50,85 +78,37 @@
         <button data-block="diamond" class="secondary">小菱形</button>
       </div>
     </aside>
-    <section class="panel"><div class="grid" id="grid"></div></section>
+    <section class="panel">
+      <p class="status" id="draftStatus"></p>
+      <div class="grid" id="grid"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <button id="undoBtn" class="secondary">撤销</button>
+        <button id="redoBtn" class="secondary">重做</button>
+      </div>
+      <p class="hint">点击填色，按住拖动可连续填色。工作稿改动会自动暂存在本机。</p>
+    </section>
     <aside class="panel">
-      <h2>操作</h2>
-      <div class="toolbar"><button id="undoBtn" class="secondary">撤销</button><button id="redoBtn" class="secondary">重做</button></div>
-      <p>点击填色，按住拖动可连续填色。</p>
-      <h2>用色统计</h2>
+      <h2>提交打样</h2>
+      <label>版本名称（不可与已有版本重名）</label>
+      <input id="commitName" type="text" maxlength="40" placeholder="例如：秋香地缠枝纹-初版">
+      <label>备注（随这一版一起冻结）</label>
+      <textarea id="notes" placeholder="配线说明、师傅意见、经密调整等"></textarea>
+      <button id="commitBtn" style="width:100%;margin-top:10px">提交打样（冻结当前稿）</button>
+      <p class="message" id="commitMessage"></p>
+      <h2>用色统计（工作稿实时）</h2>
       <div class="stats" id="stats"></div>
       <h2>重复单元预览</h2>
       <div class="preview" id="preview"></div>
       <h2>断线风险</h2>
       <div id="risk"></div>
     </aside>
+    <aside class="panel">
+      <h2>版本历史</h2>
+      <div class="versions" id="versions"></div>
+    </aside>
   </main>
-  <script>
-    const colors = ["#f7e7c4","#a6322d","#1f5f78","#d6a437","#355b38","#713d7b","#1e1b18","#e98c52"];
-    const grid = document.querySelector("#grid");
-    const palette = document.querySelector("#palette");
-    const stats = document.querySelector("#stats");
-    const preview = document.querySelector("#preview");
-    const risk = document.querySelector("#risk");
-    let cols = 18, rows = 14, active = 1, block = "dot", dragging = false;
-    let cells = [];
-    let undo = [], redo = [];
-    function init(loadSaved = true) {
-      const saved = loadSaved && JSON.parse(localStorage.getItem("zfl31Pattern") || "null");
-      if (saved) { cols = saved.cols; rows = saved.rows; cells = saved.cells; }
-      else { cols = Number(document.querySelector("#cols").value); rows = Number(document.querySelector("#rows").value); cells = Array(cols * rows).fill(0); }
-      document.querySelector("#cols").value = cols; document.querySelector("#rows").value = rows;
-      render();
-    }
-    function render() {
-      palette.innerHTML = colors.map((c, i) => '<button class="swatch '+(i===active?'active':'')+'" data-color="'+i+'" style="background:'+c+'"></button>').join("");
-      palette.querySelectorAll("[data-color]").forEach(el => el.onclick = () => { active = Number(el.dataset.color); render(); });
-      grid.style.gridTemplateColumns = "repeat("+cols+", 1fr)";
-      grid.innerHTML = cells.map((v, i) => '<div class="cell" data-i="'+i+'" style="background:'+colors[v]+'"></div>').join("");
-      grid.querySelectorAll(".cell").forEach(el => {
-        el.onpointerdown = () => { dragging = true; paint(Number(el.dataset.i)); };
-        el.onpointerenter = () => { if (dragging) paint(Number(el.dataset.i)); };
-      });
-      window.onpointerup = () => dragging = false;
-      renderStats();
-    }
-    function snapshot() { undo.push([...cells]); redo = []; if (undo.length > 50) undo.shift(); }
-    function paint(i) {
-      snapshot();
-      const targets = pattern(i);
-      targets.forEach(t => { if (t >= 0 && t < cells.length) cells[t] = active; });
-      render();
-    }
-    function pattern(i) {
-      const x = i % cols, y = Math.floor(i / cols);
-      if (block === "cross") return [i, idx(x-1,y), idx(x+1,y), idx(x,y-1), idx(x,y+1)].filter(v => v !== null);
-      if (block === "diamond") return [idx(x,y-1), idx(x-1,y), i, idx(x+1,y), idx(x,y+1)].filter(v => v !== null);
-      return [i];
-    }
-    function idx(x,y) { return x < 0 || x >= cols || y < 0 || y >= rows ? null : y * cols + x; }
-    function renderStats() {
-      const counts = colors.map((_, i) => cells.filter(v => v === i).length);
-      stats.innerHTML = counts.map((n, i) => '<div class="stat"><span><span style="display:inline-block;width:14px;height:14px;background:'+colors[i]+'"></span> 色线'+i+'</span><b>'+n+'</b></div>').join("");
-      preview.innerHTML = Array.from({length: 36}, (_, i) => '<div class="mini" style="background:'+colors[cells[(i % 6) + Math.floor(i / 6) * cols] || colors[0]]+'"></div>').join("");
-      const riskRows = [];
-      for (let y = 0; y < rows; y++) {
-        let switches = 0;
-        for (let x = 1; x < cols; x++) if (cells[y*cols+x] !== cells[y*cols+x-1]) switches++;
-        if (switches > cols * .62) riskRows.push(y + 1);
-      }
-      risk.innerHTML = riskRows.length ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>' : '<p>暂无明显断线风险。</p>';
-    }
-    document.querySelectorAll("[data-block]").forEach(btn => btn.onclick = () => block = btn.dataset.block);
-    document.querySelector("#newBtn").onclick = () => { undo = []; redo = []; init(false); };
-    document.querySelector("#undoBtn").onclick = () => { if (!undo.length) return; redo.push([...cells]); cells = undo.pop(); render(); };
-    document.querySelector("#redoBtn").onclick = () => { if (!redo.length) return; undo.push([...cells]); cells = redo.pop(); render(); };
-    document.querySelector("#saveBtn").onclick = () => localStorage.setItem("zfl31Pattern", JSON.stringify({ cols, rows, cells }));
-    document.querySelector("#exportBtn").onclick = () => {
-      const data = { cols, rows, cells, usage: colors.map((color, i) => ({ color, count: cells.filter(v => v === i).length })) };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "brocade-pattern.json"; a.click(); URL.revokeObjectURL(a.href);
-    };
-    init();
-  </script>
+  <script src="archive.js"></script>
+  <script src="state.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
